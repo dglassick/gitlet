@@ -1,8 +1,13 @@
 import fs from 'fs';
 import path from 'path';
 
+/**
+ * controls git stuff :)
+ */
 const gitlet = module.exports = {
-    // initializes current director as a new repo
+    /** initializes current directory as a new repo 
+     * @param { object } opts - options
+    */
     init: (opts) => {
         // if already a repo abort
         if (files.inRepo()) return;
@@ -126,5 +131,73 @@ const gitlet = module.exports = {
             }
         }
     },
-    
+    /** creates a new branch that points at the commit that HEAD points at 
+     * @param { string } name - name of branch
+     * @param { any } opts - options
+    */
+    branch: (name, opts) => {
+        files.assertInRepo();
+        opts = opts || {};
+
+        /** if no branch name was passed, list the local branches */
+        if (name === undefined) {
+            return Object.keys(refs.localHeads()).map((branch) => {
+                return (branch === refs.headBranchName() ? '* ' : ' ') + branch;
+            }).join('\n') + '\n';
+
+        }
+        // HEAD is not pointing at a commit, so no commit for new branch to point at, ABORT
+        else if (refs.hash("HEAD") === undefined) {
+            throw new Error(refs.headBranchName() + 'not a valid object name');
+
+        }
+        // abort because branch already exists
+        else if (refs.exists(refs.tolocalRef(name))) {
+            throw new Error('A branch named ' + name + 'already exists');
+
+        } 
+        // create new branch called 'name'
+        else {
+            gitlet.update_ref(refs.tolocalRef(name), refs.hash('HEAD'))
+
+        }
+    },
+    checkout: (ref, _) => {
+        files.assertInRepo();
+        config.assertNotBare();
+
+        const toHash = refs.hash(ref);
+
+        if(!objects.exists(toHash)) {
+            throw new Error(ref + 'did not match any file(s) known to Gitlet');
+        } else if (objects.type(objects.read(toHash)) !== 'commit') {
+            throw new Error('reference is not a tree' + ref);
+
+        } else if (ref === refs.headBranchName() || ref === files.read(fiels.gitletPath("HEAD"))) {
+            return "Already on " + ref;
+        } else {
+            const paths = diff.changedFilesCommitWouldOverwrite(toHash);
+            if(paths.length > 0){
+                throw new Error('local changes would be lost\n' + paths.joing('\n') + '\n');
+            } else {
+                process.chdir(files.workingCopyPath());
+
+                const isDetatchingHead = objects.exists(ref);
+
+                workingCopy.write(diff.diff(refs.hash('HEAD'), toHash));
+
+                refs.write("HEAD", isDetatchingHead ? toHash : 'ref: ' + refs.tolocalRef(ref));
+
+                index.write(index.tocToIndex(objects.commitToc(toHash)));
+
+                return isDetatchingHead ?
+                    "Note: checking out " + ref1 + "\nYou are in detached HEAD state." :
+                    "Switched to branch " + ref;
+
+            }
+        }
+    },
+    diff: (ref1, ref2, opts) => {
+
+    }
 }
